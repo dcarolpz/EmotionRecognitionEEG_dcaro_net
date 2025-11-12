@@ -1,0 +1,75 @@
+% Aura - Mirai testing
+% by: dcaro, Mirai Innovation Research Institute;
+%     Osaka, Japan, 15-Oct-2025.
+clear 
+clc
+close all
+
+EEG = load("EEG_raw.mat");
+EEG = EEG.EEG_raw;
+
+%__________________________________________________________________________
+% 1. Raw EEG data
+EEG = pop_select(EEG,'time',[30 60]);
+dcaro_stacked(EEG)
+title('Raw EEG')
+
+%__________________________________________________________________________
+% 2. H-infinity filter
+My_ref = [EEG.data(1,:);
+          EEG.data(2,:);
+          ones(1,size(EEG.times,2))];
+
+fprintf('\n Starting H-infinity filter...\n\n');
+
+pt = cell(1,size(EEG.data,1));
+for i = 1:size(pt,2)
+    pt{i} = 0.5*eye(3);
+end
+
+conf.acquisition.eye_index = [1 2];
+conf.acquisition.EEG_index = 3:28;
+conf.preprocessing.gamma = 1.15;
+conf.preprocessing.Pt = pt;
+conf.preprocessing.wh = zeros(size(My_ref,1),size(EEG.data,1));
+conf.preprocessing.q = 10.^-9;
+
+only_EEG = EEG.data;
+only_EEG(conf.acquisition.eye_index,:) = [];
+eyedatdif = My_ref';
+
+eeg_out = zeros(size(EEG.data,2),length(conf.acquisition.EEG_index));
+for i = 1:size(EEG.data,2)
+    [eeg_out(i,:),~,~] = HinfFilter_parallel_c_MATLAB_mex(only_EEG(:,i)', ...
+        eyedatdif(i,:),conf.preprocessing.gamma,conf.preprocessing.Pt, ...
+        conf.preprocessing.wh,length(conf.acquisition.EEG_index),conf.preprocessing.q); % parameters wh and Pt are updated (the filter tends to converge)
+end
+
+fprintf('\n Done...\n\n');
+EEG.data = [eeg_out';
+dcaro_stacked(EEG)
+title('EEG after H-infinity filter')
+
+%__________________________________________________________________________
+% 3. Bandpass filter
+lo = 0.1;                               % Highpass cutoff frequency
+hi = 50;                                % Lowpass cutoff frequency
+[A,B,C,D] = butter(4,[lo hi]/(EEG.srate/2));
+[sos,g] = ss2sos(A,B,C,D);
+
+fprintf('\n Applying Bandpass filter...\n\n');
+EEG.data = filtfilt(sos,g,EEG.data')';
+fprintf('\n Done...\n\n');
+
+dcaro_stacked(EEG)
+title('EEG after Bandpass filter')
+
+%__________________________________________________________________________
+% 4. Common Average Reference
+fprintf('\n Removing Common Average Reference...\n\n');
+EEG = pop_reref(EEG,[],'exclude',[1 2]);
+EEG.data = double(EEG.data);
+fprintf('\n Done...\n\n');
+
+dcaro_stacked(EEG)
+title('EEG after CAR')

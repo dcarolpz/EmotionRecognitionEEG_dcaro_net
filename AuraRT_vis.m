@@ -1,0 +1,89 @@
+% Aura data pre-processing in real time
+% by: Diego Caro López
+% 16-Oct-2025
+
+clear
+clc
+close all
+fprintf('Starting LSL stream.\n')
+
+fs = 250;
+window_size = 6;    
+recorded = 1;
+
+chans = ["Fp1" "Fp2" "F3" "F4" "C3" "C4" "P3" "P4"];
+if recorded == 0
+    window = zeros(size(chans,2),fs*window_size);
+else
+    window = zeros(size(chans,2),8*fs*window_size);
+end
+
+% Initializing LSL library
+lib = lsl_loadlib();
+
+% Resolving stream
+result = {};
+while isempty(result)
+    result = lsl_resolve_byprop(lib,'type','EEG'); 
+end
+
+% Opening inlet
+inlet = lsl_inlet(result{1},[],size(window,2),0);
+inlet.open_stream
+inlet.set_postprocessing(15)
+
+fprintf('Success.\n\nNow receiving data -dcarolpz.\n')
+tic;
+while true
+    [chunk,stamps] = inlet.pull_chunk();
+    if isempty(chunk) || size(chunk,2) > size(window,2)
+        pause(0.05);
+        continue
+    else
+        [chunk3,chunk2] = dcaro_aura_fix(chunk,recorded);
+        break
+    end
+end
+inlet.close_stream
+inlet.delete
+
+fprintf('\nWe have enough data.\n Stream stopped.\n\n')
+dcaro_stacked(chunk2,'fs',fs,'tile',1,'labels',cellstr(chans),'scale',200,'scalecol','none','color','r','ref',1:8,'lw',3)
+dcaro_stacked(chunk3,'fs',fs,'tile',1,'labels',cellstr(chans),'scale',200,'scalecol','b','color','k')
+
+figure
+hold on
+pspectrum(chunk2(4,:),fs)
+pspectrum(chunk3(4,:),fs)
+legend('EEG after BP','EEG after WAAF')
+xlim([0 50])
+
+%% Testing & Comparing OA removal
+clear
+clc
+% close all
+
+load('dcaro_basal/bp.mat')
+load('dcaro_basal/clean.mat')
+EEG = pop_select(EEG,'time',[1 61]);
+clean = pop_select(clean,'time',[1 61]);
+dcaro_method = EEG;
+
+tic
+    [dcaro_method.data,ref,weights]= dcaro_WAAF(dcaro_method.data);
+toc
+
+figure
+dcaro_stacked(EEG,'tile',1,'scale',100,'color','k','ref',1:8,'scalecol','none','lw',4,'win',[7 9])
+dcaro_stacked(clean,'tile',1,'scale',100,'color','r','scalecol','none','lw',2,'win',[7 9])
+dcaro_stacked(dcaro_method,'tile',1,'scale',100,'color','k','scalecol','b','win',[7 9])
+
+
+figure
+hold on
+pspectrum(EEG.data(1,:),250)
+pspectrum(clean.data(1,:),250)
+pspectrum(dcaro_method.data(1,:),250)
+legend('Raw EEG','EEG corrected by ICA','EEG corrected by WAAF')
+xlim([0 50])
+
