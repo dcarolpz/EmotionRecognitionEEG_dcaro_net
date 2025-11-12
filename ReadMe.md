@@ -28,7 +28,8 @@ Additional files included:
 - **dcaro_aura_fix.m:** A custom function that cleans EEG data using [...] just check it out.
 - **dcaro_tcp.m:** Hardest code in this repo btw. That's me testing a tcp server in MATLAB.
 - **trainingPartitions.m:** Not my code, found it somewhere I don't remember, but used to split data for training/testing/validation.
-
+- **failed tests/:** More not so cool code but just to throw it out there.
+- **metadata/:** Some files needed for 'Step1_Preprocessing.m'. This is actually from the DEAP dataset I hope they don't find out and sue me.
 ------------------------------------------------------------------------
 At some point, any of my codes may use dcaro_stacked.m (https://www.mathworks.com/matlabcentral/fileexchange/180339-dcaro_stacked/?s_tid=mlc_lp_leaf) so there's the link. 
 
